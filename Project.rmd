@@ -1,0 +1,212 @@
+---
+title: "Project"
+author: "Billy Ng"
+date: "2023-06-22"
+output: html_document
+---
+
+
+```{r}
+
+
+# load libraries (quietly stops all the messages appearing)
+library(readr, quietly = TRUE)
+library(dplyr, quietly = TRUE)
+library(DT, quietly = TRUE)
+
+# load imdb and bechdel
+movies_imdb <- read_csv("https://raw.githubusercontent.com/andrewmoles2/rTrainIntroduction/main/r-data-wrangling-1/data/IMDb%20movies.csv")
+
+bechdel <- read_csv("https://raw.githubusercontent.com/andrewmoles2/rTrainIntroduction/main/r-data-wrangling-1/data/raw_bechdel.csv")
+
+# fix imdb id key
+movies_imdb$imdb_title_id <- parse_number(movies_imdb$imdb_title_id)
+
+# join data (left join)
+imdb_bechdel <- left_join(x = movies_imdb, y = bechdel,
+                          by = c("imdb_title_id" = "imdb_id", "year", "title"))
+
+# review the data
+# just looking at Alfred Hitchcock movies in this example
+imdb_bechdel %>%
+  filter(grepl("Alfred Hitchcock", director)) %>%
+  datatable()
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(ggtext)
+
+imdb_bechdel %>%
+  filter(grepl("Alfred Hitchcock", director)) %>%
+  mutate(rating_string = case_when(
+    rating == 0 ~ "bechdel rating 0",
+    rating == 1 ~ "bechdel rating 1",
+    rating == 2 ~ "bechdel rating 2",
+    rating == 3 ~ "bechdel rating 3"
+  )) %>%
+  drop_na(rating) -> hitchcock
+
+h_avg_vote <- mean(hitchcock$avg_vote)
+
+hitchcock %>%
+  ggplot(aes(x = year, y = avg_vote, colour = factor(rating_string))) +
+  geom_point() +
+  geom_line() +
+  geom_hline(yintercept = h_avg_vote, linetype = 2, colour = "grey75") +
+  facet_wrap(vars(rating_string), nrow = 2) +
+  guides(colour = "none") + 
+  labs(title = "Alfred Hitchcock films IMDB and bechdel rating",
+       caption = "Bechdel Rule is a simple test which names the following three criteria: 
+       (1) it has to have at least two women in it, who 
+       (2) who talk to each other, about 
+       (3) something besides a man",
+       x = "Year film released",
+       y = "Average IMDB rating") +
+  scale_colour_manual(values = c('#ef2d56','#ed7d3a','#dced31','#0cce6b')) +
+  scale_y_continuous(limits = c(4, 10)) +
+  theme_minimal(base_family = "Avenir") +
+  theme(strip.background = element_blank(),
+        strip.text = element_textbox(size = 12, colour = "white", fill = "#5D729D", box.colour = "#4A618C",
+                                     halign = 0.5, linetype = 1, r = unit(5, "pt"), width = unit(1, "npc"),
+                                     padding = margin(2,0,1,0), margin = margin(3,3,3,3)),
+        plot.caption = element_text(hjust = 0),
+        plot.title.position = "plot")
+```
+```{r}
+library(ggplot2)
+library(RColorBrewer)
+library(scales)
+imdb_bechdel
+movies_USA <- imdb_bechdel %>% select (title, year, country, budget, usa_gross_income, rating) %>%
+  filter (country == "USA") %>%
+  drop_na(budget) %>%
+  drop_na(usa_gross_income) %>%
+  drop_na(rating)
+  
+movies_USA <- movies_USA %>%
+  mutate (budget_num = parse_number(budget,)) %>%
+  mutate (usa_gross_income_num = parse_number(usa_gross_income,)) %>%
+  mutate (roi = round (usa_gross_income_num / budget_num, digit=2))
+
+summary (movies_USA)
+movies_USA <- movies_USA %>% filter (title != "Little Monsters") %>%
+   filter (title != "Paranormal Activity") %>%
+  filter (title != "The Blair Witch Project")
+
+
+movies_USA %>%
+  slice_max(roi, n = 10)
+
+movies_USA_top_ROI <- movies_USA %>%
+  slice_max(roi, n = 100)
+
+movies_USA
+rating_colours <- c("red", "purple", "blue")
+
+movies_USA_roi_rating_plot <- ggplot(movies_USA, aes(x = year, y = roi, colour = rating)) + 
+    geom_point () +
+  scale_colour_gradient2( low = rating_colours[1], mid = rating_colours[2], high = rating_colours[3] ) +
+  labs(title = "Rate of return and rating of movies in USA",
+       x = "Year of publishing",
+       y = "ROI")
+movies_USA_roi_rating_plot
+
+movies_USA_top_ROI 
+
+movies_USA_top_roi_rating_plot <- ggplot(movies_USA_top_ROI, aes(x = year, y = roi, colour = rating)) + 
+    geom_point () +
+  scale_colour_gradient2( low = rating_colours[1], mid = rating_colours[2], high = rating_colours[3] ) +
+  labs(title = "Top 100 Return on Investment (ROI) movies in th USA and their ratings",
+       x = "Year of publishing",
+       y = "ROI")
+movies_USA_top_roi_rating_plot
+
+# save
+ggsave("movie_USA_top_roi_rating.PNG", movies_USA_top_roi_rating_plot)
+
+```
+
+```{r}
+# Load the library
+library(leaflet)
+
+# Note: if you do not already installed it, install it with:
+# install.packages("leaflet")
+
+# Background 1: NASA
+m <- leaflet() %>% 
+   addTiles() %>% 
+   setView( lng = 2.34, lat = 48.85, zoom = 5 ) %>% 
+   addProviderTiles("NASAGIBS.ViirsEarthAtNight2012")
+m
+
+# Background 2: World Imagery
+m <- leaflet() %>% 
+   addTiles() %>% 
+   setView( lng = 2.34, lat = 48.85, zoom = 3 ) %>% 
+   addProviderTiles("Esri.WorldImagery")
+m
+
+
+```
+
+```{r}
+imdb_bechdel
+library(tidyverse)
+
+# Remove part after the comma for the entire column
+primary_country = gsub(",.*", "", imdb_bechdel$country)
+
+# Print the modified column
+print(primary_country )
+
+global_rating <- imdb_bechdel%>%
+  mutate(primary_nation = primary_country)
+
+global_rating <- global_rating %>% select (title, year, primary_nation, budget, usa_gross_income, rating) %>%
+  drop_na(budget) %>%
+  drop_na(usa_gross_income) %>%
+  drop_na(rating)
+
+global_rating
+
+average_ratings <- global_rating %>%
+  group_by(primary_nation) %>%
+  summarize(average_rating = mean(rating))
+
+average_ratings
+
+install.packages("maps")
+install.packages("mapdata")
+library(maps)
+library(mapdata)
+
+# Load the map data
+data("world.cities")
+
+# Merge the average ratings data with map data
+merged_data <- merge(world.cities, average_ratings, by.x = "country.etc", by.y = "primary_nation", all.x = TRUE)
+
+# Create a map plot
+map_plot <- ggplot() +
+  geom_point(data = merged_data, aes(x = long, y = lat, color = average_rating), alpha = 0.7) +
+  scale_color_gradient(low = "red", high = "green") +
+  labs(title = "Average Rating by Country") +
+  theme_bw()
+
+# Display the map plot
+print(map_plot)
+
+
+
+
+
+
+
+
+
+
+```
+
